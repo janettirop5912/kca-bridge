@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>KCA Smart Queue System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-gray-100">
+
+<!-- NAV -->
+<div class="bg-blue-800 text-white p-4 flex justify-between">
+  <h1 class="text-xl font-bold">KCA Smart Queue</h1>
+  <div>
+    <button onclick="show('student')" class="px-4 py-2 bg-blue-600 rounded">Student</button>
+    <button onclick="show('staff')" class="px-4 py-2 bg-green-600 rounded">Staff</button>
+    <button onclick="show('display')" class="px-4 py-2 bg-red-600 rounded">Display</button>
+  </div>
+</div>
+
+<!-- STUDENT -->
+<div id="student" class="p-8 max-w-md mx-auto">
+  <div class="bg-white p-6 rounded-lg shadow-lg">
+    <h2 class="text-2xl font-bold mb-4">Request Queue Number</h2>
+    <input id="name" class="w-full p-2 border rounded mb-3" placeholder="Full Name">
+    <input id="reg" class="w-full p-2 border rounded mb-3" placeholder="Reg No: KCA/123">
+    <select id="service" class="w-full p-2 border rounded mb-3">
+      <option>Finance Department</option><option>Exams Office</option><option>HOD Office</option>
+    </select>
+    <button onclick="requestQueue()" class="w-full bg-blue-600 text-white p-3 rounded font-bold">REQUEST NUMBER</button>
+    <p id="status" class="mt-4 text-center text-green-600 font-semibold"></p>
+  </div>
+</div>
+
+<!-- STAFF -->
+<div id="staff" class="p-8 hidden">
+  <h2 class="text-2xl font-bold mb-4">Pending Requests</h2>
+  <div id="pendingList" class="grid gap-4"></div>
+</div>
+
+<!-- DISPLAY -->
+<div id="display" class="hidden bg-black text-white min-h-screen p-10 text-center">
+  <h1 class="text-5xl font-bold text-green-400">NOW SERVING</h1>
+  <p id="nowServing" class="text-8xl font-extrabold my-6">---</p>
+  <p id="nowReg" class="text-3xl mb-10">---</p>
+  <h2 class="text-3xl text-yellow-400">UP NEXT</h2>
+  <div id="nextList" class="text-2xl mt-4 space-y-2"></div>
+</div>
+
+<script>
+  // PASTE YOUR FIREBASE CONFIG
+  const firebaseConfig = { apiKey: "YOUR_KEY", projectId: "YOUR_ID" };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  function show(role){
+    ['student','staff','display'].forEach(r=>document.getElementById(r).classList.add('hidden'));
+    document.getElementById(role).classList.remove('hidden');
+    if(role=='staff') loadPending();
+    if(role=='display') loadDisplay();
+  }
+
+  function requestQueue(){
+    db.collection("requests").add({
+      name: name.value, regNo: reg.value, service: service.value,
+      status: "pending", requestedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    status.innerText = "✅ Request Sent! Please wait for approval";
+  }
+
+  function loadPending(){
+    db.collection("requests").where("status","==","pending").orderBy("requestedAt")
+    .onSnapshot(snap => {
+      pendingList.innerHTML = "";
+      snap.forEach(doc => {
+        pendingList.innerHTML += `
+        <div class="bg-white p-4 rounded shadow flex justify-between items-center">
+          <div><p class="font-bold text-lg">${doc.data().name}</p><p>${doc.data().regNo} - ${doc.data().service}</p></div>
+          <div>
+            <button onclick="update('${doc.id}','approved')" class="bg-green-500 text-white px-4 py-2 rounded">Accept</button>
+            <button onclick="update('${doc.id}','rejected')" class="bg-red-500 text-white px-4 py-2 rounded">Reject</button>
+          </div>
+        </div>`;
+      })
+    })
+  }
+  function update(id, status){ db.collection("requests").doc(id).update({status}); }
+
+  function loadDisplay(){
+    db.collection("requests").where("status","==","approved").orderBy("requestedAt").limit(5)
+    .onSnapshot(snap => {
+      let docs = snap.docs;
+      nowServing.innerText = docs[0]?.data().name || "WAITING...";
+      nowReg.innerText = docs[0]?.data().regNo || "";
+      nextList.innerHTML = docs.slice(1).map((d,i)=>`${i+1}. ${d.data().name} - ${d.data().regNo}`).join('');
+    })
+  }
+  show('student');
+</script>
+</body>
+</html>

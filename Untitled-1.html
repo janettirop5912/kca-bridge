@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KCA - Separate Logins</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700&family=Manrope:wght@800&display=swap');
+body{font-family:'DM Sans',sans-serif;background:linear-gradient(rgba(243,246,250,.92),rgba(243,246,250,.92)),url('icon.svg') center/38vmin no-repeat fixed;background-color:#f3f6fa} b,h2{font-family:'Manrope',sans-serif}
+video{transform:scaleX(-1)}
+.card{background:white;border:1px solid #dce4ef;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.06);padding:24px}
+</style>
+</head>
+<body onload="checkLogin()">
+
+<!-- ROLE SELECTOR -->
+<div id="rolePage" class="min-h-screen grid place-items-center p-6">
+  <div class="max-w-4xl w-full grid md:grid-cols-2 gap-6">
+    <div onclick="showLogin('lecturer')" class="card cursor-pointer hover:scale-[1.02] transition border-2 border-[#102a56]">
+      <div class="w-14 h-14 bg-[#102a56] rounded-2xl grid place-items-center text-white text-2xl">👨‍🏫</div>
+      <h2 class="text-xl font-black mt-4">Lecturer Portal</h2>
+      <p class="text-sm text-slate-500">Units • QR Generator • All Records • Excel Export</p>
+      <button class="w-full mt-6 bg-[#102a56] text-white py-3 rounded-xl font-bold">Login as Lecturer</button>
+    </div>
+    <div onclick="showLogin('student')" class="card cursor-pointer hover:scale-[1.02] transition border-2 border-emerald-600">
+      <div class="w-14 h-14 bg-emerald-600 rounded-2xl grid place-items-center text-white text-2xl">🎓</div>
+      <h2 class="text-xl font-black mt-4">Student Portal</h2>
+      <p class="text-sm text-slate-500">Scan QR • Face Verify • My Attendance Only</p>
+      <button class="w-full mt-6 bg-emerald-600 text-white py-3 rounded-xl font-bold">Login as Student</button>
+    </div>
+  </div>
+</div>
+
+<!-- LECTURER LOGIN -->
+<div id="lecLoginPage" class="hidden min-h-screen grid place-items-center p-4">
+  <div class="card max-w-sm w-full">
+    <button onclick="goHome()" class="text-xs">← Back</button>
+    <h2 class="text-2xl font-black text-[#102a56] mt-2">Lecturer Login</h2>
+    <input id="lecEmail" placeholder="lecturer@kca.ac.ke" class="w-full border-2 p-3 rounded-xl mt-6">
+    <input id="lecPass" type="password" autocomplete="current-password" placeholder="Password: kca2026" class="w-full border-2 p-3 rounded-xl mt-3">
+    <button onclick="loginLecturer()" class="w-full bg-[#102a56] text-white p-3 rounded-xl mt-4 font-black">LOGIN</button>
+    <p id="lecLoginError" class="hidden mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700"></p>
+  </div>
+</div>
+
+<!-- STUDENT LOGIN -->
+<div id="stuLoginPage" class="hidden min-h-screen grid place-items-center p-4">
+  <div class="card max-w-sm w-full">
+    <button onclick="goHome()" class="text-xs">← Back</button>
+    <h2 class="text-2xl font-black text-emerald-700 mt-2">Student Login</h2>
+    <input id="stuReg" placeholder="KCA/XXX/2024" class="w-full border-2 p-3 rounded-xl mt-6 font-bold">
+    <input id="stuPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN: 1234" class="w-full border-2 p-3 rounded-xl mt-3">
+    <button onclick="loginStudent()" class="w-full bg-emerald-600 text-white p-3 rounded-xl mt-4 font-black">LOGIN</button>
+    <p id="stuLoginError" class="hidden mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700"></p>
+  </div>
+</div>
+
+<!-- LECTURER DASHBOARD -->
+<div id="lecDash" class="hidden">
+  <div class="bg-[#102a56] text-white p-4 flex justify-between sticky top-0 z-50">
+    <b>KCA LECTURER • <span id="lecUser"></span></b>
+    <div class="flex gap-2">
+      <button onclick="showLecTab('units')" id="lb-units" class="bg-white text-[#102a56] px-3 py-1 rounded-full text-xs font-bold">UNITS</button>
+      <button onclick="showLecTab('qr')" id="lb-qr" class="border border-white/30 px-3 py-1 rounded-full text-xs">QR</button>
+      <button onclick="showLecTab('records')" id="lb-records" class="border border-white/30 px-3 py-1 rounded-full text-xs">RECORDS</button>
+      <button onclick="openCredentialSettings('lecturer')" class="border border-white/30 px-3 py-1 rounded-full text-xs">Change password</button>
+      <button onclick="logout()" class="bg-[#f4b740] text-black px-3 py-1 rounded-full text-xs">Logout</button>
+    </div>
+  </div>
+  <div class="max-w-[1160px] mx-auto p-4">
+    <div id="lec-units" class="card">
+      <h2 class="font-black text-xl">📚 Units</h2>
+      <div class="grid md:grid-cols-4 gap-2 mt-4 bg-amber-50 p-3 rounded-xl border">
+        <input id="unitCode" placeholder="BIT 3205" class="border p-3 rounded-xl font-bold">
+        <input id="unitName" placeholder="AI & ML" class="border p-3 rounded-xl">
+        <input id="unitCourse" placeholder="BSc IT Y3S2" class="border p-3 rounded-xl">
+        <button onclick="addUnit()" class="bg-[#102a56] text-white rounded-xl font-bold">+ ADD</button>
+      </div>
+      <div id="allUnitsList" class="grid md:grid-cols-2 gap-2 mt-4"></div>
+    </div>
+    <div id="lec-qr" class="hidden card text-center">
+      <h2 class="font-black text-xl text-left">📢 Lecturer QR</h2>
+      <select id="unitSelect" class="w-full border-2 p-3 rounded-xl mt-4 font-bold bg-slate-50"></select>
+      <input type="date" id="datePicker" class="w-full border-2 p-3 rounded-xl mt-2">
+      <div class="mt-6 inline-block p-4 border-[5px] border-[#102a56] rounded-[20px]"><div id="qrcode"></div></div>
+      <p class="mt-3 font-bold">Expires <span id="timer" class="text-3xl text-red-600">30</span>s • <span id="curUnit"></span></p>
+      <div id="todayAttendance" class="text-left mt-4"></div>
+    </div>
+    <div id="lec-records" class="hidden card">
+      <h2 class="font-black text-xl">📊 All Records (Lecturer Only)</h2>
+      <div class="flex flex-wrap gap-2 mt-4">
+        <select id="filterUnit" class="border p-3 rounded-xl" onchange="renderRecords()"></select>
+        <input type="date" id="filterDate" class="border p-3 rounded-xl" onchange="renderRecords()">
+        <button onclick="exportAll()" class="bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold">EXPORT EXCEL</button>
+      </div>
+      <div id="recordsTable" class="mt-4 overflow-auto max-h-[600px]"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STUDENT DASHBOARD -->
+<div id="stuDash" class="hidden">
+  <div class="bg-emerald-700 text-white p-4 flex justify-between sticky top-0 z-50">
+    <b>STUDENT • <span id="stuUser"></span></b>
+    <div class="flex gap-2"><button onclick="openCredentialSettings('student')" class="border border-white/40 px-3 py-1 rounded-full text-xs">Change PIN</button><button onclick="logout()" class="bg-white text-emerald-700 px-3 py-1 rounded-full text-xs">Logout</button></div>
+  </div>
+  <div class="max-w-3xl mx-auto p-4 grid gap-4">
+    <div class="card">
+      <h2 class="font-black">Step 1: Register Face Once</h2>
+      <input id="regNoInput" class="w-full border-2 p-3 rounded-xl mt-3 font-bold bg-slate-100" readonly>
+      <input id="nameInput" placeholder="Full Name" class="w-full border p-3 rounded-xl mt-2">
+      <video id="video" autoplay muted class="w-full h-56 bg-black rounded-xl mt-3"></video>
+      <button onclick="registerFace()" class="w-full bg-blue-600 text-white p-3 rounded-xl mt-3 font-bold">📸 Register</button>
+      <p id="faceStatus" class="text-xs mt-2 p-2 bg-slate-100 rounded"></p>
+    </div>
+    <div class="card">
+      <h2 class="font-black">Step 2: Scan QR</h2>
+      <div id="reader" class="w-full h-56 bg-black rounded-xl mt-3"></div>
+      <button onclick="startScanner()" class="w-full bg-emerald-600 text-white p-3 rounded-xl mt-3 font-bold">START SCANNER</button>
+      <button onclick="verifyAndMark()" class="w-full bg-[#102a56] text-white p-3 rounded-xl mt-2 font-black">VERIFY & MARK</button>
+      <p id="verifyStatus" class="mt-3 p-3 bg-amber-50 rounded-xl font-bold text-sm">Waiting...</p>
+    </div>
+    <div class="card">
+      <h2 class="font-black">My Attendance Only</h2>
+      <div id="myRecTable" class="mt-3 text-sm"></div>
+    </div>
+  </div>
+</div>
+
+<div id="credentialModal" class="hidden fixed inset-0 z-[60] bg-slate-900/50 p-4 grid place-items-center">
+  <div class="card max-w-sm w-full">
+    <button onclick="closeCredentialSettings()" class="text-xs">← Cancel</button>
+    <h2 id="credentialTitle" class="text-xl font-black mt-2">Change password</h2>
+    <p class="text-sm text-slate-500 mt-2">This credential is saved only on this browser.</p>
+    <input id="newCredential" type="password" class="w-full border-2 p-3 rounded-xl mt-4" placeholder="New password">
+    <input id="confirmCredential" type="password" class="w-full border-2 p-3 rounded-xl mt-3" placeholder="Confirm password">
+    <button onclick="saveCredential()" class="w-full bg-[#102a56] text-white p-3 rounded-xl mt-4 font-black">SAVE</button>
+    <p id="credentialError" class="hidden mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700"></p>
+  </div>
+</div>
+
+<script>
+let units=JSON.parse(localStorage.getItem('kca_units_v3'))||[{code:"BIT 3205",name:"AI & ML",course:"BSc IT Y3S2",id:1},{code:"BIT 3202",name:"Mobile App",course:"BSc IT Y3S2",id:2}];
+let students=JSON.parse(localStorage.getItem('students_v3'))||[];
+let attendance=JSON.parse(localStorage.getItem('attendance_v3'))||{};
+let faceDB=JSON.parse(localStorage.getItem('faceDescriptors_v3'))||{};
+let curQR="", html5Qr=null, qrTimer=null, camStream=null;
+
+function checkLogin(){
+  let role=localStorage.getItem('kca_role');
+  if(role=='lecturer'){ showDash('lec'); return; }
+  if(role=='student'){ showDash('stu'); return; }
+  goHome();
+}
+function goHome(){ hideAll(); rolePage.classList.remove('hidden'); }
+function hideAll(){ ['rolePage','lecLoginPage','stuLoginPage','lecDash','stuDash','credentialModal'].forEach(id=>document.getElementById(id).classList.add('hidden')); }
+function showLogin(t){ hideAll(); if(t=='lecturer') lecLoginPage.classList.remove('hidden'); else stuLoginPage.classList.remove('hidden'); }
+function showDash(t){ hideAll(); if(t=='lec'){ lecDash.classList.remove('hidden'); lecUser.innerText=localStorage.getItem('kca_user'); renderUnits(); renderSelects(); genQR(); startQRTimer(); renderRecords(); } else { stuDash.classList.remove('hidden'); let r=localStorage.getItem('kca_reg'); stuUser.innerText=r; regNoInput.value=r; initFace(); renderMy(); } }
+function showLoginError(id,message){ let box=document.getElementById(id); box.innerText=message; box.classList.remove('hidden'); }
+function loginLecturer(){
+  document.getElementById('lecLoginError').classList.add('hidden');
+  let email=lecEmail.value.trim()||'lecturer@kca.ac.ke';
+  if(lecPass.value.trim()!==(localStorage.getItem('kca_lecturer_password')||'kca2026')) return showLoginError('lecLoginError','Incorrect password. Use your saved password, or the first-use password kca2026.');
+  localStorage.setItem('kca_role','lecturer'); localStorage.setItem('kca_user',email); showDash('lec');
+}
+function loginStudent(){
+  document.getElementById('stuLoginError').classList.add('hidden');
+  let reg=stuReg.value.trim().toUpperCase();
+  if(!reg) return showLoginError('stuLoginError','Enter your registration number first.');
+  if(stuPin.value.trim()!==(localStorage.getItem('kca_student_pin')||'1234')) return showLoginError('stuLoginError','Incorrect PIN. Use your saved PIN, or the first-use PIN 1234.');
+  localStorage.setItem('kca_role','student'); localStorage.setItem('kca_reg',reg); showDash('stu');
+}
+lecPass.addEventListener('keydown',event=>{if(event.key==='Enter') loginLecturer();});
+stuPin.addEventListener('keydown',event=>{if(event.key==='Enter') loginStudent();});
+let credentialRole='';
+function openCredentialSettings(role){ credentialRole=role; credentialTitle.innerText=role==='lecturer'?'Change password':'Change PIN'; newCredential.value=''; confirmCredential.value=''; credentialError.classList.add('hidden'); credentialModal.classList.remove('hidden'); }
+function closeCredentialSettings(){ credentialModal.classList.add('hidden'); }
+function saveCredential(){ let value=newCredential.value.trim(), confirmation=confirmCredential.value.trim(); credentialError.classList.add('hidden'); if(value.length<4) return showLoginError('credentialError',credentialRole==='student'?'PIN must be at least 4 characters.':'Password must be at least 4 characters.'); if(value!==confirmation) return showLoginError('credentialError','The entries do not match.'); localStorage.setItem(credentialRole==='lecturer'?'kca_lecturer_password':'kca_student_pin',value); closeCredentialSettings(); alert(credentialRole==='lecturer'?'Password updated on this browser.':'PIN updated on this browser.'); }
+function logout(){ localStorage.removeItem('kca_role'); goHome(); location.reload(); }
+
+function showLecTab(t){ ['units','qr','records'].forEach(k=>{ document.getElementById('lec-'+k).classList.add('hidden'); document.getElementById('lb-'+k).className="border border-white/30 px-3 py-1 rounded-full text-xs"; }); document.getElementById('lec-'+t).classList.remove('hidden'); document.getElementById('lb-'+t).className="bg-white text-[#102a56] px-3 py-1 rounded-full text-xs font-bold"; if(t=='qr') genQR(); if(t=='records') renderRecords(); }
+
+function renderUnits(){ let d=allUnitsList; d.innerHTML=""; units.forEach((u,i)=>{ let c=Object.keys(attendance).reduce((a,dt)=>a+(attendance[dt][u.code]?Object.keys(attendance[dt][u.code]).length:0),0); d.innerHTML+=`<div class="border p-3 rounded-xl flex justify-between bg-gray-50"><div><b>${u.code} - ${u.name}</b><p class="text-xs">${u.course} | Marks ${c}</p></div><button onclick="delU(${i})" class="bg-red-500 text-white px-2 rounded text-xs">Del</button></div>`; }); }
+function renderSelects(){ let h=units.map(u=>`<option value="${u.code}">${u.code} - ${u.name}</option>`).join(''); unitSelect.innerHTML=h; filterUnit.innerHTML=`<option value="ALL">ALL UNITS</option>`+h; }
+function addUnit(){ let c=unitCode.value.toUpperCase().trim(), n=unitName.value.trim(), co=unitCourse.value.trim()||"General"; if(!c||!n) return alert('Enter'); units.push({code:c,name:n,course:co,id:Date.now()}); localStorage.setItem('kca_units_v3',JSON.stringify(units)); unitCode.value="";unitName.value=""; renderUnits(); renderSelects(); }
+function delU(i){ if(!confirm('Delete? Records stay')) return; units.splice(i,1); localStorage.setItem('kca_units_v3',JSON.stringify(units)); renderUnits(); renderSelects(); }
+
+function genQR(){ let u=unitSelect.value; if(!u) return; curUnit.innerText=u; let ts=Date.now(), date=datePicker.value||new Date().toISOString().slice(0,10); curQR=btoa(JSON.stringify({unit:u,date,ts})); qrcode.innerHTML=""; new QRCode(qrcode,{text:curQR,width:200,height:200}); }
+function startQRTimer(){ let c=30; if(qrTimer) clearInterval(qrTimer); qrTimer=setInterval(()=>{c--; timer.innerText=c; if(c<=0){c=30; genQR();}},1000); }
+datePicker.valueAsDate=new Date(); filterDate.valueAsDate=new Date(); unitSelect.onchange=genQR; datePicker.onchange=genQR;
+
+async function initFace(){ try{ await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'); await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'); await faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'); faceStatus.innerText="AI Ready"; video.srcObject=await navigator.mediaDevices.getUserMedia({video:true}); }catch(e){ faceStatus.innerText="Need internet + localhost:8080"; } }
+async function registerFace(){ let reg=regNoInput.value.toUpperCase(), name=nameInput.value; if(!reg||!name) return alert('Enter name'); let d=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor(); if(!d) return alert('No face'); faceDB[reg]={name,desc:Array.from(d.descriptor)}; localStorage.setItem('faceDescriptors_v3',JSON.stringify(faceDB)); if(!students.find(s=>s.reg==reg)){students.push({id:Date.now(),reg,name}); localStorage.setItem('students_v3',JSON.stringify(students));} faceStatus.innerText="✅ Registered "+reg; }
+function startScanner(){ if(html5Qr) try{html5Qr.stop()}catch(e){}; html5Qr=new Html5Qrcode("reader"); html5Qr.start({facingMode:"environment"},{fps:15,qrbox:250},(txt)=>{ try{let o=JSON.parse(atob(txt)); if(Date.now()-o.ts>35000) return verifyStatus.innerText="QR Expired"; curQR=txt; verifyStatus.innerText="QR OK "+o.unit; html5Qr.stop();}catch(e){} },()=>{}); }
+async function verifyAndMark(){ let reg=regNoInput.value.toUpperCase(); if(!faceDB[reg]) return alert('Register face'); if(!curQR) return alert('Scan QR'); let live=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor(); if(!live) return verifyStatus.innerText="No face"; let dist=faceapi.euclideanDistance(new Float32Array(faceDB[reg].desc),live.descriptor); if(dist>0.55) return verifyStatus.innerText="Mismatch "+dist.toFixed(2); let q=JSON.parse(atob(curQR)); if(!attendance[q.date]) attendance[q.date]={}; if(!attendance[q.date][q.unit]) attendance[q.date][q.unit]={}; let s=students.find(x=>x.reg==reg); attendance[q.date][q.unit][s.id]="present"; localStorage.setItem('attendance_v3',JSON.stringify(attendance)); verifyStatus.innerText="✅ MARKED "+q.unit; renderMy(); }
+
+function renderRecords(){ let fu=filterUnit.value, fd=filterDate.value, html=`<table class="w-full text-xs"><tr class="bg-[#102a56] text-white"><th class="p-2 text-left">Date</th><th class="p-2">Unit</th><th class="p-2">Reg</th><th class="p-2">Name</th></tr>`, tot=0; Object.keys(attendance).sort().reverse().forEach(d=>{ if(fd&&d!=fd) return; Object.keys(attendance[d]).forEach(u=>{ if(fu!="ALL"&&u!=fu) return; Object.keys(attendance[d][u]).forEach(id=>{ let st=students.find(s=>s.id==id)||{reg:"?",name:"?"}; tot++; html+=`<tr class="border-b"><td class="p-2">${d}</td><td class="p-2 font-bold">${u}</td><td class="p-2">${st.reg}</td><td class="p-2">${st.name}</td></tr>`; }); }); }); html+="</table>"; if(tot==0) html="<p class='p-6 text-center text-slate-400'>No records</p>"; recordsTable.innerHTML=html; todayAttendance.innerHTML=tot?`<b>Today ${unitSelect.value}: ${tot} total marks</b>`:""; }
+function renderMy(){ let reg=localStorage.getItem('kca_reg'), html=""; Object.keys(attendance).forEach(d=>{Object.keys(attendance[d]).forEach(u=>{Object.keys(attendance[d][u]).forEach(id=>{let st=students.find(s=>s.id==id); if(st&&st.reg==reg) html+=`<div class="flex justify-between border-b py-2"><span>${d} ${u}</span><span class="text-green-600 font-bold">PRESENT</span></div>`;});});}); myRecTable.innerHTML=html||"No records yet"; }
+function exportAll(){ let data=[]; Object.keys(attendance).forEach(d=>{Object.keys(attendance[d]).forEach(u=>{Object.keys(attendance[d][u]).forEach(id=>{let st=students.find(s=>s.id==id)||{}; data.push({Date:d,Unit:u,Reg:st.reg,Name:st.name});});});}); let ws=XLSX.utils.json_to_sheet(data); let wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Records"); XLSX.writeFile(wb,"KCA_Records.xlsx"); }
+</script>
+</body>
+</html>

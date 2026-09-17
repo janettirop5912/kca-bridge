@@ -1,0 +1,226 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: "YOUR_API_KEY",
+      appId: "YOUR_APP_ID",
+      messagingSenderId: "YOUR_SENDER_ID",
+      projectId: "YOUR_PROJECT_ID",
+    ),
+  );
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'KCA Smart Queue',
+      theme: ThemeData(primaryColor: const Color(0xFF0A2A6B), textTheme: GoogleFonts.poppinsTextTheme()),
+      home: const AuthScreen(),
+    );
+  }
+}
+
+// 0. LOGIN SCREEN - Only Staff can login
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key});
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+class _AuthScreenState extends State<AuthScreen> {
+  final email = TextEditingController();
+  final password = TextEditingController();
+
+  void login() async {
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(email: email.text, password: password.text);
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const RoleScreen()));
+    } catch(e){ ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Login Failed: $e"))); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("KCA Smart Queue Login"), backgroundColor: const Color(0xFF0A2A6B)),
+      body: Padding(padding: const EdgeInsets.all(20),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Image.asset('assets/kca_logo.png', height: 100), // ADD KCA LOGO HERE
+          const SizedBox(height: 20),
+          TextField(controller: email, decoration: const InputDecoration(labelText: "Staff Email", border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: "Password", border: OutlineInputBorder())),
+          const SizedBox(height: 20),
+          ElevatedButton(onPressed: login, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0A2A6B), minimumSize: const Size(200, 50)), child: const Text("LOGIN AS STAFF")),
+          TextButton(onPressed: ()=>Navigator.push(context, MaterialPageRoute(builder: (_) => const RoleScreen(isStudent: true))), child: const Text("Continue as Student/Display"))
+        ]),
+      ),
+    );
+  }
+}
+
+// ROLE SCREEN
+class RoleScreen extends StatelessWidget {
+  final bool isStudent;
+  const RoleScreen({super.key, this.isStudent = false});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("KCA Smart Queue"), backgroundColor: const Color(0xFF0A2A6B)),
+      body: Center(
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          if(!isStudent) _roleBtn(context, "Staff Dashboard", Icons.badge, Colors.green, const StaffScreen()),
+          _roleBtn(context, "Student", Icons.person, Colors.blue, const StudentScreen()),
+          _roleBtn(context, "Display Screen", Icons.tv, Colors.red, const DisplayScreen()),
+        ]),
+      ),
+    );
+  }
+  Widget _roleBtn(context, text, icon, color, page) {
+    return Padding(
+      padding: const EdgeInsets.all(10),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(backgroundColor: color, minimumSize: const Size(250, 60)),
+        icon: Icon(icon, size: 30), label: Text(text, style: const TextStyle(fontSize: 18)),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
+      ),
+    );
+  }
+}
+
+// 1. STUDENT SCREEN - WITH QUEUE NUMBER
+class StudentScreen extends StatefulWidget {
+  const StudentScreen({super.key});
+  @override
+  State<StudentScreen> createState() => _StudentScreenState();
+}
+class _StudentScreenState extends State<StudentScreen> {
+  final name = TextEditingController();
+  final reg = TextEditingController();
+  String service = "Finance";
+  String myStatus = "";
+
+  void requestQueue() async {
+    // GET NEXT QUEUE NUMBER
+    var snap = await FirebaseFirestore.instance.collection('queue_requests').where('status', whereIn: ['pending','approved','serving']).get();
+    int nextNumber = snap.docs.length + 1;
+
+    await FirebaseFirestore.instance.collection('queue_requests').add({
+      'name': name.text, 'regNo': reg.text, 'service': service,
+      'queueNumber': nextNumber,
+      'status': 'pending', 'requestedAt': FieldValue.serverTimestamp()
+    });
+    setState(() => myStatus = "Request Sent! Your Queue No: $nextNumber");
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Student Portal"), backgroundColor: const Color(0xFF0A2A6B)),
+      body: Padding(padding: const EdgeInsets.all(20),
+        child: Column(children: [
+          TextField(controller: name, decoration: const InputDecoration(labelText: "Full Name", border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: reg, decoration: const InputDecoration(labelText: "Reg No", border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          DropdownButtonFormField(value: service, decoration: const InputDecoration(border: OutlineInputBorder()),
+            items: ["Finance","Exams","HOD"].map((e)=>DropdownMenuItem(value: e, child: Text(e))).toList(),
+            onChanged: (v)=>setState(()=>service=v!)),
+          const SizedBox(height: 20),
+          ElevatedButton(onPressed: requestQueue, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0A2A6B)), child: const Text("REQUEST NUMBER")),
+          const SizedBox(height: 20),
+          Text(myStatus, style: const TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold))
+        ]),
+      ),
+    );
+  }
+}
+
+// 2. STAFF SCREEN - WITH "CALL NEXT"
+class StaffScreen extends StatelessWidget {
+  const StaffScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Staff Dashboard"), backgroundColor: Colors.green),
+      body: Column(children: [
+        // CURRENTLY SERVING
+        StreamBuilder(
+          stream: FirebaseFirestore.instance.collection('queue_requests').where('status', isEqualTo: 'serving').limit(1).snapshots(),
+          builder: (context, snap) {
+            if (!snap.hasData || snap.data!.docs.isEmpty) return const ListTile(title: Text("No one being served"));
+            var doc = snap.data!.docs.first;
+            return Card(color: Colors.yellow[100],
+              child: ListTile(
+                title: Text("NOW SERVING: ${doc['queueNumber']}. ${doc['name']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                trailing: ElevatedButton(onPressed: ()=>doc.reference.update({'status':'done'}), child: const Text("DONE")),
+              ),
+            );
+          }
+        ),
+        // PENDING/APPROVED LIST
+        Expanded(
+          child: StreamBuilder(
+            stream: FirebaseFirestore.instance.collection('queue_requests').where('status', whereIn: ['pending','approved']).orderBy('requestedAt').snapshots(),
+            builder: (context, snap) {
+              if (!snap.hasData) return const CircularProgressIndicator();
+              return ListView(
+                children: snap.data!.docs.map((doc) => Card(
+                  child: ListTile(
+                    leading: CircleAvatar(child: Text(doc['queueNumber'].toString())),
+                    title: Text(doc['name']),
+                    subtitle: Text("${doc['regNo']} - ${doc['service']} - ${doc['status']}"),
+                    trailing: doc['status'] == 'pending'
+                     ? IconButton(icon: const Icon(Icons.check_circle, color: Colors.green), onPressed: ()=>doc.reference.update({'status':'approved'}))
+                      : ElevatedButton(onPressed: ()=>doc.reference.update({'status':'serving'}), child: const Text("CALL NEXT"))
+                  ),
+                )).toList(),
+              );
+            }
+          ),
+        )
+      ]),
+    );
+  }
+}
+
+// 3. DISPLAY SCREEN - WITH BIG QUEUE NUMBER
+class DisplayScreen extends StatelessWidget {
+  const DisplayScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(title: Row(children: [Image.asset('assets/kca_logo.png', height: 30), const SizedBox(width: 10), const Text("KCA NOW SERVING")]), backgroundColor: const Color(0xFF0A2A6B)),
+      body: StreamBuilder(
+        stream: FirebaseFirestore.instance.collection('queue_requests').where('status', isEqualTo: 'serving').limit(1).snapshots(),
+        builder: (context, snap) {
+          var serving = snap.hasData && snap.data!.docs.isNotEmpty? snap.data!.docs.first : null;
+          return StreamBuilder(
+            stream: FirebaseFirestore.instance.collection('queue_requests').where('status', isEqualTo: 'approved').orderBy('requestedAt').limit(5).snapshots(),
+            builder: (context, snap2) {
+              var next = snap2.hasData? snap2.data!.docs : [];
+              return Column(children: [
+                const SizedBox(height: 50),
+                const Text("NOW SERVING", style: TextStyle(color: Colors.green, fontSize: 40, fontWeight: FontWeight.bold)),
+                Text(serving?['queueNumber'].toString()?? "--", style: const TextStyle(color: Colors.white, fontSize: 120, fontWeight: FontWeight.bold)),
+                Text(serving?['name']?? "WAITING...", style: const TextStyle(color: Colors.white, fontSize: 40)),
+                const Divider(color: Colors.white, height: 50),
+                const Text("UP NEXT", style: TextStyle(color: Colors.yellow, fontSize: 30)),
+              ...next.map((d) => Text("${d['queueNumber']}. ${d['name']}", style: const TextStyle(color: Colors.white, fontSize: 24)))
+              ]);
+            }
+          );
+        }
+      ),
+    );
+  }
+}
