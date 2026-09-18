@@ -8,6 +8,40 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .kca-blue { background-color: #0A2A6B; }
+    .display-shell {
+      background: #071b48;
+      background-image: linear-gradient(135deg, rgba(10, 42, 107, 0.98), rgba(4, 19, 54, 0.98));
+      border-top: 8px solid #F4B400;
+      box-shadow: 0 24px 60px rgba(10, 42, 107, 0.25);
+    }
+    .display-kicker { color: #F4B400; letter-spacing: 0.28em; }
+    .desk-card {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: inset 0 1px rgba(255, 255, 255, 0.12);
+    }
+    .desk-card.is-live { border-color: #F4B400; }
+    .queue-number { color: #7DE2A8; text-shadow: 0 0 24px rgba(125, 226, 168, 0.25); }
+    .live-dot {
+      width: 0.55rem;
+      height: 0.55rem;
+      background: #7DE2A8;
+      box-shadow: 0 0 0 5px rgba(125, 226, 168, 0.12);
+      animation: live-pulse 1.8s ease-in-out infinite;
+    }
+    .next-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .next-item:last-child { border-bottom: 0; }
+    @keyframes live-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
     body {
       background: linear-gradient(rgba(243, 246, 250, 0.92), rgba(243, 246, 250, 0.92)), url('icon.svg') center/38vmin no-repeat fixed;
     }
@@ -60,15 +94,29 @@
     <div id="pendingList" class="space-y-3"></div>
   </div>
 
-  <div id="display" class="hidden bg-black text-white min-h-[80vh] rounded-xl p-10 text-center">
-    <h1 class="text-5xl font-bold text-green-400 tracking-widest">NOW SERVING</h1>
-    <div class="grid md:grid-cols-3 gap-6 mt-6 mb-8">
-      <div class="bg-gray-900 rounded p-5"><p class="text-xl text-gray-300">Desk 1</p><p id="desk1-now" class="text-4xl font-bold text-green-400">--</p></div>
-      <div class="bg-gray-900 rounded p-5"><p class="text-xl text-gray-300">Desk 2</p><p id="desk2-now" class="text-4xl font-bold text-green-400">--</p></div>
-      <div class="bg-gray-900 rounded p-5"><p class="text-xl text-gray-300">Desk 3</p><p id="desk3-now" class="text-4xl font-bold text-green-400">--</p></div>
+  <div id="display" class="hidden display-shell text-white min-h-[80vh] rounded-2xl p-6 sm:p-10">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-white/20 pb-6">
+      <div>
+        <p class="display-kicker text-xs font-bold uppercase">KCA University</p>
+        <h1 class="mt-2 text-4xl sm:text-6xl font-black tracking-tight">NOW SERVING</h1>
+      </div>
+      <div class="flex items-center gap-3 text-sm font-semibold text-blue-100">
+        <span class="live-dot rounded-full"></span>
+        <span>LIVE QUEUE</span>
+      </div>
     </div>
-    <h2 class="text-3xl text-yellow-400 border-t border-gray-600 pt-6">UP NEXT</h2>
-    <div id="nextList" class="text-2xl mt-4 space-y-2"></div>
+    <div class="grid md:grid-cols-3 gap-5 mt-8">
+      <div id="desk1-card" class="desk-card rounded-xl p-6"><div class="flex items-center justify-between"><p class="text-lg font-bold text-blue-100">DESK 1</p><span id="desk1-state" class="text-xs font-bold text-blue-100">READY</span></div><p id="desk1-now" class="queue-number mt-4 text-7xl font-black">--</p></div>
+      <div id="desk2-card" class="desk-card rounded-xl p-6"><div class="flex items-center justify-between"><p class="text-lg font-bold text-blue-100">DESK 2</p><span id="desk2-state" class="text-xs font-bold text-blue-100">READY</span></div><p id="desk2-now" class="queue-number mt-4 text-7xl font-black">--</p></div>
+      <div id="desk3-card" class="desk-card rounded-xl p-6"><div class="flex items-center justify-between"><p class="text-lg font-bold text-blue-100">DESK 3</p><span id="desk3-state" class="text-xs font-bold text-blue-100">READY</span></div><p id="desk3-now" class="queue-number mt-4 text-7xl font-black">--</p></div>
+    </div>
+    <div class="mt-8 rounded-xl bg-white/10 p-5">
+      <div class="flex items-center justify-between border-b border-white/20 pb-4">
+        <h2 class="text-2xl font-bold text-yellow-300">UP NEXT</h2>
+        <span class="text-xs font-bold uppercase tracking-widest text-blue-100">Please listen for your name</span>
+      </div>
+      <div id="nextList" class="mt-2 text-lg"></div>
+    </div>
   </div>
 
 </div>
@@ -185,6 +233,18 @@
     }).join('');
   }
 
+  function announceDeskCall(request){
+    if (!('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+    const announcement = new SpeechSynthesisUtterance(
+      `Attention ${request.name}, queue number ${request.queueNumber}. Please proceed to ${request.desk}.`
+    );
+    announcement.lang = 'en-US';
+    announcement.rate = 0.9;
+    window.speechSynthesis.speak(announcement);
+  }
+
   function update(id, newStatus){
     const requests = getQueueRequests();
     const index = requests.findIndex(r => r.id === id);
@@ -193,6 +253,9 @@
 
     requests[index].status = newStatus;
     saveQueueRequests(requests);
+    if (newStatus === 'serving') {
+      announceDeskCall(requests[index]);
+    }
     loadStaff();
     loadDisplay();
   }
@@ -202,16 +265,21 @@
 
     ['Desk 1', 'Desk 2', 'Desk 3'].forEach(desk => {
       const serving = requests.find(r => r.desk === desk && r.status === 'serving') || null;
-      const nowEl = document.getElementById(`${desk.toLowerCase().replace(/\s+/g, '')}-now`);
+      const deskKey = desk.toLowerCase().replace(/\s+/g, '');
+      const nowEl = document.getElementById(`${deskKey}-now`);
+      const cardEl = document.getElementById(`${deskKey}-card`);
+      const stateEl = document.getElementById(`${deskKey}-state`);
       if (nowEl) {
         nowEl.innerText = serving ? `#${serving.queueNumber}` : '--';
       }
+      if (cardEl) cardEl.classList.toggle('is-live', Boolean(serving));
+      if (stateEl) stateEl.innerText = serving ? 'ACTIVE' : 'READY';
     });
 
     const next = requests.filter(r => r.status === 'approved').slice(0, 8);
     nextList.innerHTML = next.length
-      ? next.map((d, i) => `${i + 1}. ${d.desk} #${d.queueNumber} ${d.name}`).join('<br>')
-      : '<span>NO APPROVED REQUESTS</span>';
+      ? next.map((d, i) => `<div class="next-item"><span class="font-bold text-yellow-300">${String(i + 1).padStart(2, '0')}</span><span class="flex-1 font-semibold">${d.name}</span><span class="text-sm text-blue-100">${d.desk} · #${d.queueNumber}</span></div>`).join('')
+      : '<span class="block py-4 text-blue-100">NO APPROVED REQUESTS</span>';
   }
 
   show('student');
