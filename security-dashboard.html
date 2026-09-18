@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KCA Security Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<style>
+  body{background:linear-gradient(135deg,#eef3f9,#f8fafc)}
+  .kca-navy{background:#0a2a6b}
+  .kca-panel{border-top:4px solid #0a2a6b}
+</style>
+</head>
+<body class="text-slate-800">
+<header class="kca-navy text-white p-4 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-[#0A2A6B] font-black">KCA</div>
+    <div><h1 class="font-black">KCA SECURITY</h1><p class="text-xs text-blue-100">Emergency Response Dashboard</p></div>
+  </div>
+  <a href="emergency-preview.html" class="border border-[#F4B400] text-[#F4B400] px-3 py-2 rounded-lg text-xs font-bold">Student Report Form</a>
+</header>
+<main class="max-w-6xl mx-auto p-4">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div><h2 class="text-2xl font-black text-[#0A2A6B]">Response Queue</h2><p class="text-sm text-slate-500">Monitor and coordinate campus incidents.</p></div>
+    <div class="flex gap-2"><span id="activeCount" class="bg-[#F4B400] text-[#0A2A6B] px-3 py-2 rounded-full text-sm font-bold">0 active</span><button id="refreshBtn" class="bg-[#0A2A6B] text-white px-3 py-2 rounded-lg text-sm font-bold">Refresh</button></div>
+  </div>
+  <div id="connectionNotice" class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 text-sm mb-4">Local demonstration mode: reports are shared only within this browser.</div>
+  <section id="incidentList" class="grid md:grid-cols-2 gap-4"></section>
+</main>
+<script>
+const STORAGE_KEY='kca_ems';
+let incidents=[];
+const statusText={new:'NEW',acknowledged:'ACKNOWLEDGED',dispatched:'RESPONDER DISPATCHED',resolved:'RESOLVED'};
+function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));}
+function readIncidents(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return[]}}
+function saveIncidents(){localStorage.setItem(STORAGE_KEY,JSON.stringify(incidents));}
+async function setStatus(index,status){incidents[index].status=status;incidents[index].updatedAt=new Date().toLocaleTimeString();if(window.kcaCloud?.enabled&&incidents[index].id){await kcaCloud.update(incidents[index].id,{status,updated_at:new Date().toISOString()});}saveIncidents();render();}
+function render(){incidents=readIncidents();const active=incidents.filter(item=>item.status!=='resolved');document.getElementById('activeCount').textContent=`${active.length} active`;const list=document.getElementById('incidentList');if(!incidents.length){list.innerHTML='<div class="kca-panel bg-white rounded-xl p-10 text-center text-slate-500 md:col-span-2">No incidents reported.</div>';return;}list.innerHTML=incidents.map((incident,index)=>{const resolved=incident.status==='resolved';return `<article class="kca-panel bg-white rounded-xl shadow p-5 ${incident.sos?'border-t-red-700':''} ${resolved?'opacity-60':''}"><div class="flex justify-between gap-3"><div><span class="font-black text-[#0A2A6B]">${escapeHtml(incident.type)} ${incident.sos?'• SOS':''}</span><p class="text-xs text-slate-500 mt-1">Incident #${escapeHtml(incident.id||'------')} · Reported ${escapeHtml(incident.time)}</p></div><span class="text-xs font-bold ${resolved?'text-emerald-700':'text-red-700'}">${statusText[incident.status||'new']}</span></div><div class="mt-4 space-y-1"><p class="font-bold">${escapeHtml(incident.location)}</p><p class="text-sm">${escapeHtml(incident.desc)}</p><p class="text-xs text-slate-500">Reported by ${escapeHtml(incident.name)} · ${escapeHtml(incident.phone)}</p></div>${!resolved?`<div class="flex flex-wrap gap-2 mt-4"><button data-action="acknowledged" data-index="${index}" class="bg-[#0A2A6B] text-white px-3 py-2 rounded-lg text-xs font-bold">Acknowledge</button><button data-action="dispatched" data-index="${index}" class="bg-[#F4B400] text-[#0A2A6B] px-3 py-2 rounded-lg text-xs font-bold">Dispatch Responder</button><button data-action="resolved" data-index="${index}" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold">Resolve</button></div>`:'<p class="text-xs text-emerald-700 font-bold mt-4">Response complete</p>'}</article>`}).join('');document.querySelectorAll('[data-action]').forEach(button=>button.onclick=()=>setStatus(Number(button.dataset.index),button.dataset.action));}
+async function initCloud(){try{await kcaCloud.init();if(kcaCloud.enabled){incidents=await kcaCloud.list();document.getElementById('connectionNotice').textContent='Connected to the shared campus incident system.';render();}}catch(error){console.error(error);}}
+document.getElementById('refreshBtn').onclick=async()=>{if(kcaCloud.enabled){incidents=await kcaCloud.list();}render();};window.addEventListener('storage',render);render();initCloud();
+</script>
+</body>
+</html>
